@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Filmify — turn phone footage into film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14120F;
+    --surface: #1E1B16;
+    --surface-2: #262117;
+    --text: #EFE7D8;
+    --text-muted: #A79C89;
+    --gold: #C89B3C;
+    --rust: #9C3B2E;
+    --hairline: #3A352C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:inherit;}
+
+  /* ---------- layout shell ---------- */
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px;}
+  header{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:28px 0;border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{
+    font-family:'Fraunces',serif;font-size:22px;font-weight:600;
+    letter-spacing:0.02em;
+  }
+  .wordmark span{color:var(--gold);}
+  header .tag{color:var(--text-muted);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;}
+
+  /* ---------- hero / before-after ---------- */
+  .hero{padding:56px 0 40px;}
+  .hero h1{
+    font-family:'Fraunces',serif;font-weight:500;
+    font-size:clamp(32px,5vw,52px);line-height:1.08;letter-spacing:-0.01em;
+    max-width:640px;margin:0 0 14px;
+  }
+  .hero p.lede{color:var(--text-muted);font-size:17px;max-width:520px;margin:0 0 36px;}
+
+  .compare{
+    position:relative;width:100%;aspect-ratio:1.91/1;border-radius:2px;
+    overflow:hidden;border:1px solid var(--hairline);
+    background:var(--surface);cursor:ew-resize;user-select:none;
+  }
+  .compare .frame{position:absolute;inset:0;}
+  .compare svg{width:100%;height:100%;display:block;}
+  .compare .after{clip-path:inset(0 0 0 50%);}
+  .compare .handle{
+    position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);
+    transform:translateX(-1px);
+  }
+  .compare .handle::after{
+    content:'';position:absolute;top:50%;left:50%;width:34px;height:34px;
+    background:var(--gold);border-radius:50%;transform:translate(-50%,-50%);
+  }
+  .compare .handle::before{
+    content:'◂ ▸';position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);
+    font-size:11px;color:var(--bg);z-index:2;letter-spacing:2px;
+  }
+  .compare .label{
+    position:absolute;bottom:12px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:0.06em;padding:4px 8px;background:rgba(20,18,15,0.65);
+    border:1px solid var(--hairline);
+  }
+  .compare .label.raw{left:12px;}
+  .compare .label.graded{right:12px;color:var(--gold);}
+
+  /* ---------- upload panel ---------- */
+  .panel{
+    background:var(--surface);border:1px solid var(--hairline);border-radius:2px;
+    padding:32px;margin:48px 0;
+  }
+  .panel h2{
+    font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 4px;
+  }
+  .panel .step-label{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gold);
+    letter-spacing:0.08em;margin-bottom:6px;display:block;
+  }
+
+  .dropzone{
+    border:1px dashed var(--hairline);border-radius:2px;padding:36px 20px;
+    text-align:center;margin:20px 0;transition:border-color .15s;
+  }
+  .dropzone.drag{border-color:var(--gold);}
+  .dropzone input{display:none;}
+  .dropzone label{
+    display:inline-block;padding:10px 20px;background:var(--gold);color:#14120F;
+    font-weight:600;font-size:14px;border-radius:2px;cursor:pointer;margin-top:10px;
+  }
+  .dropzone .filename{color:var(--text-muted);font-size:13px;margin-top:10px;font-family:'IBM Plex Mono',monospace;}
+
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:24px 0;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.03em;}
+  .field select, .field input[type=range]{width:100%;}
+  select{
+    background:var(--surface-2);color:var(--text);border:1px solid var(--hairline);
+    padding:9px 10px;border-radius:2px;font-family:'Inter',sans-serif;font-size:14px;width:100%;
+  }
+  input[type=range]{accent-color:var(--gold);}
+  .range-val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold);}
+  .checkline{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-muted);}
+
+  button.cta{
+    width:100%;padding:14px;background:var(--rust);color:var(--text);
+    border:none;border-radius:2px;font-size:15px;font-weight:600;letter-spacing:0.01em;
+    cursor:pointer;margin-top:12px;
+  }
+  button.cta:disabled{background:var(--hairline);color:var(--text-muted);cursor:not-allowed;}
+
+  .status{margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-muted);}
+  .status.error{color:#D97757;}
+  .status a{color:var(--gold);text-decoration:underline;}
+
+  footer{border-top:1px solid var(--hairline);padding:24px 0;color:var(--text-muted);font-size:12px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">FILM<span>IFY</span></div>
+    <div class="tag mono">iPhone → 24fps · graded · grained</div>
+  </header>
+
+  <section class="hero">
+    <h1>Your phone shot it flat.<br>We grade it like film.</h1>
+    <p class="lede">Drag the frame below. That's the whole pitch — upload a clip and get the same treatment back, ready for a landscape Instagram post.</p>
+
+    <div class="compare" id="compare">
+      <div class="frame before">
+        <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid slice">
+          <rect width="400" height="210" fill="#8fa4ad"/>
+          <rect y="120" width="400" height="90" fill="#5c6b63"/>
+          <circle cx="330" cy="40" r="22" fill="#f2eddb"/>
+          <polygon points="0,120 60,70 130,120" fill="#7a8b7f"/>
+          <polygon points="90,120 170,55 250,120" fill="#6c7d72"/>
+          <polygon points="200,120 280,80 360,120" fill="#7a8b7f"/>
+        </svg>
+      </div>
+      <div class="frame after" style="filter:saturate(0.85) contrast(1.12) sepia(0.18) hue-rotate(-8deg) brightness(0.92);">
+        <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid slice">
+          <rect width="400" height="210" fill="#8fa4ad"/>
+          <rect y="120" width="400" height="90" fill="#5c6b63"/>
+          <circle cx="330" cy="40" r="22" fill="#f2eddb"/>
+          <polygon points="0,120 60,70 130,120" fill="#7a8b7f"/>
+          <polygon points="90,120 170,55 250,120" fill="#6c7d72"/>
+          <polygon points="200,120 280,80 360,120" fill="#7a8b7f"/>
+        </svg>
+      </div>
+      <div class="handle" id="handle"></div>
+      <div class="label raw mono">00:00:01:12 RAW</div>
+      <div class="label graded mono">GRADED</div>
+    </div>
+  </section>
+
+  <div class="panel">
+    <span class="step-label mono">STEP 01</span>
+    <h2>Upload your clip</h2>
+    <div class="dropzone" id="dropzone">
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:6px;">Drag &amp; drop a video here, or</div>
+      <label for="fileInput">Choose file</label>
+      <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-m4v,video/3gpp,video/x-msvideo,video/MP2T,.mov,.mp4,.m4v,.3gp,.avi,.mts,.m2ts" />
+      <div class="filename" id="filename"></div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center;">
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.MOV</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.MP4</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.M4V</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.3GP</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.AVI</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.MTS</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--hairline);padding:3px 8px;border-radius:2px;">.M2TS</span>
+        <span class="mono" style="font-size:11px;color:var(--text-muted);padding:3px 4px;">· up to 500 MB</span>
+      </div>
+    </div>
+
+    <span class="step-label mono">STEP 02</span>
+    <h2>Pick a look</h2>
+    <div class="options">
+      <div class="field">
+        <label>Grade</label>
+        <select id="look">
+          <option value="warm_film">Warm Film</option>
+          <option value="teal_orange">Teal &amp; Orange</option>
+          <option value="faded">Faded</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Aspect ratio</label>
+        <select id="aspect_ratio">
+          <option value="instagram_landscape">Instagram Landscape (1.91:1)</option>
+          <option value="widescreen">Widescreen (16:9)</option>
+          <option value="cinematic">Cinematic (2.39:1)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Grain intensity — <span class="range-val" id="grainVal">15</span></label>
+        <input type="range" id="grain" min="0" max="40" value="15" />
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end;">
+        <label class="checkline"><input type="checkbox" id="denoise" checked /> Clean up audio noise</label>
+      </div>
+    </div>
+
+    <span class="step-label mono">STEP 03</span>
+    <button class="cta" id="submitBtn" disabled>Process clip</button>
+    <div class="status mono" id="status"></div>
+  </div>
+
+  <footer>Filmify MVP — processing runs server-side via FFmpeg. No account needed.</footer>
+</div>
+
+<script>
+  // ---- before/after drag slider ----
+  const compare = document.getElementById('compare');
+  const handle = document.getElementById('handle');
+  const afterEl = compare.querySelector('.after');
+  let dragging = false;
+
+  function setSplit(clientX){
+    const rect = compare.getBoundingClientRect();
+    let pct = ((clientX - rect.left) / rect.width) * 100;
+    pct = Math.max(0, Math.min(100, pct));
+    afterEl.style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = pct + '%';
+  }
+  compare.addEventListener('pointerdown', e => { dragging = true; setSplit(e.clientX); });
+  window.addEventListener('pointermove', e => { if(dragging) setSplit(e.clientX); });
+  window.addEventListener('pointerup', () => dragging = false);
+
+  // ---- grain slider readout ----
+  const grain = document.getElementById('grain');
+  const grainVal = document.getElementById('grainVal');
+  grain.addEventListener('input', () => grainVal.textContent = grain.value);
+
+  // ---- file selection ----
+  const fileInput = document.getElementById('fileInput');
+  const filenameEl = document.getElementById('filename');
+  const submitBtn = document.getElementById('submitBtn');
+  const dropzone = document.getElementById('dropzone');
+  let selectedFile = null;
+
+  const SUPPORTED_EXT = new Set(['.mov','.mp4','.m4v','.3gp','.avi','.mts','.m2ts']);
+  function setFile(file) {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!file || (!file.type.startsWith('video/') && !SUPPORTED_EXT.has(ext))) {
+      filenameEl.textContent = 'Unsupported file type. Please drop a video file.';
+      filenameEl.style.color = '#D97757';
+      return;
+    }
+    selectedFile = file;
+    filenameEl.textContent = file.name;
+    filenameEl.style.color = '';
+    submitBtn.disabled = false;
+  }
+
+  fileInput.addEventListener('change', () => {
+    if(fileInput.files.length) setFile(fileInput.files[0]);
+  });
+
+  // drag-and-drop
+  dropzone.addEventListener('dragenter', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', e => { if(!dropzone.contains(e.relatedTarget)) dropzone.classList.remove('drag'); });
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if(file) setFile(file);
+  });
+
+  // ---- submit + poll ----
+  const statusEl = document.getElementById('status');
+
+  submitBtn.addEventListener('click', async () => {
+    if(!selectedFile) return;
+    submitBtn.disabled = true;
+    statusEl.className = 'status mono';
+    statusEl.textContent = 'Uploading…';
+
+    const form = new FormData();
+    form.append('file', selectedFile);
+    form.append('look', document.getElementById('look').value);
+    form.append('aspect_ratio', document.getElementById('aspect_ratio').value);
+    form.append('grain_intensity', grain.value);
+    form.append('denoise_audio', document.getElementById('denoise').checked);
+
+    try {
+      const res = await fetch('/api/jobs', { method: 'POST', body: form });
+      if(!res.ok){ throw new Error(await res.text()); }
+      const job = await res.json();
+      pollJob(job.job_id);
+    } catch(err){
+      statusEl.className = 'status mono error';
+      statusEl.textContent = 'Upload failed: ' + err.message;
+      submitBtn.disabled = false;
+    }
+  });
+
+  async function pollJob(jobId){
+    statusEl.textContent = 'Queued…';
+    const poll = setInterval(async () => {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      const data = await res.json();
+      if(data.status === 'processing'){
+        statusEl.textContent = 'Grading, cropping, and rendering…';
+      } else if(data.status === 'done'){
+        clearInterval(poll);
+        statusEl.innerHTML = `Done. <a href="/api/jobs/${jobId}/download">Download your clip</a>`;
+        submitBtn.disabled = false;
+      } else if(data.status === 'error'){
+        clearInterval(poll);
+        statusEl.className = 'status mono error';
+        statusEl.textContent = 'Processing failed: ' + data.error;
+        submitBtn.disabled = false;
+      }
+    }, 2000);
+  }
+</script>
+
+</body>
+</html>
