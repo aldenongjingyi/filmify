@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+backend/storage/
+*.mp4
+*.mov
+*.avi
+.env
