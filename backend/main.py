@@ -24,12 +24,11 @@ from pipeline import JobOptions, run_pipeline, LOOK_PRESETS, ASPECT_RATIOS
 BASE_DIR = Path(__file__).parent
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
-# Outputs land in ~/Movies/Filmify/ — easy to find in Finder without downloading.
-OUTPUTS_DIR = Path.home() / "Movies" / "Filmify"
+DEFAULT_OUTPUTS_DIR = Path.home() / "Movies" / "Filmify"
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
-for d in (UPLOADS_DIR, OUTPUTS_DIR):
-    d.mkdir(parents=True, exist_ok=True)
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Filmify API")
 
@@ -63,16 +62,24 @@ async def create_job(
     grain_intensity: int = Form(15),
     target_fps: int = Form(24),
     denoise_audio: bool = Form(True),
+    output_dir: str = Form(""),
 ):
     if look not in LOOK_PRESETS:
         raise HTTPException(400, f"Unknown look '{look}'. Choose from {list(LOOK_PRESETS)}")
     if aspect_ratio not in ASPECT_RATIOS:
         raise HTTPException(400, f"Unknown aspect_ratio '{aspect_ratio}'")
 
+    # Resolve output directory: use provided path (+ filmify/ subfolder) or default
+    if output_dir.strip():
+        out_dir = Path(output_dir.strip()).expanduser() / "filmify"
+    else:
+        out_dir = DEFAULT_OUTPUTS_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     job_id = uuid.uuid4().hex
     original_stem = Path(file.filename).stem if file.filename else job_id
     input_path = UPLOADS_DIR / f"{job_id}_{file.filename}"
-    output_path = OUTPUTS_DIR / f"{original_stem}_filmify.mp4"
+    output_path = out_dir / f"{original_stem}_filmify.mp4"
 
     size = 0
     with input_path.open("wb") as f:

@@ -223,6 +223,18 @@
     <div class="upload-err" id="uploadErr" style="display:none;"></div>
     <div class="clip-list" id="clipList"></div>
 
+    <div style="margin:4px 0 24px;">
+      <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.03em;">
+        Output folder <span style="color:var(--hairline);font-family:'IBM Plex Mono',monospace;">(optional — defaults to ~/Movies/Filmify)</span>
+      </label>
+      <input type="text" id="outputDir" placeholder="/Users/you/Desktop/bali videos"
+        style="width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--hairline);
+               padding:9px 10px;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:13px;" />
+      <div style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'IBM Plex Mono',monospace;">
+        Outputs saved as <span style="color:var(--gold);">your_folder/filmify/filename_filmify.mp4</span>
+      </div>
+    </div>
+
     <span class="step-label mono">STEP 02</span>
     <h2>Pick a look</h2>
     <div class="options">
@@ -392,6 +404,7 @@
       form.append('aspect_ratio',  aspectRatio);
       form.append('grain_intensity', grainVal2);
       form.append('denoise_audio', denoise);
+      form.append('output_dir',    document.getElementById('outputDir').value.trim());
 
       try {
         const res = await fetch('/api/jobs', { method: 'POST', body: form });
