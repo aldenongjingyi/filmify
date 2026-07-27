@@ -24,7 +24,8 @@ from pipeline import JobOptions, run_pipeline, LOOK_PRESETS, ASPECT_RATIOS
 BASE_DIR = Path(__file__).parent
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
-OUTPUTS_DIR = STORAGE_DIR / "outputs"
+# Outputs land in ~/Movies/Filmify/ — easy to find in Finder without downloading.
+OUTPUTS_DIR = Path.home() / "Movies" / "Filmify"
 FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
 for d in (UPLOADS_DIR, OUTPUTS_DIR):
@@ -69,8 +70,9 @@ async def create_job(
         raise HTTPException(400, f"Unknown aspect_ratio '{aspect_ratio}'")
 
     job_id = uuid.uuid4().hex
+    original_stem = Path(file.filename).stem if file.filename else job_id
     input_path = UPLOADS_DIR / f"{job_id}_{file.filename}"
-    output_path = OUTPUTS_DIR / f"{job_id}.mp4"
+    output_path = OUTPUTS_DIR / f"{original_stem}_filmify.mp4"
 
     size = 0
     with input_path.open("wb") as f:
@@ -123,7 +125,8 @@ async def download_job(job_id: str):
         raise HTTPException(404, "Job not found")
     if job["status"] != "done":
         raise HTTPException(409, f"Job is not ready (status: {job['status']})")
-    return FileResponse(job["output"], media_type="video/mp4", filename=f"filmify_{job_id}.mp4")
+    output_path = Path(job["output"])
+    return FileResponse(str(output_path), media_type="video/mp4", filename=output_path.name)
 
 
 # Serve the frontend last so /api/* routes above take priority.
