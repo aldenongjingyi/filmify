@@ -4,14 +4,13 @@ pipeline.py — cinema-quality FFmpeg processing pipeline
 Processing order:
   1. FPS conversion + tblend  — 24fps with 180° shutter motion-blur simulation
   2. deflicker                — fix iPhone auto-exposure frame-to-frame drift
-  3. crop                     — centre-crop to target aspect ratio
-  4. lenscorrection           — compensate iPhone barrel/wide-angle distortion
-  5. unsharp (negative)       — remove computational phone sharpness / diffusion
-  6. colour grade             — bold S-curve (toe+shoulder), split-toning per preset
-  7. halation                 — warm highlight bloom (film-base light scatter)
-  8. vignette                 — lens corner light falloff
-  9. scale                    — Lanczos to final output resolution
- 10. film grain               — half-res Gaussian noise → neighbour upscale (clumping)
+  3. lenscorrection           — compensate iPhone barrel/wide-angle distortion
+  4. unsharp (negative)       — remove computational phone sharpness / diffusion
+  5. colour grade             — bold S-curve (toe+shoulder), split-toning per preset
+  6. halation                 — warm highlight bloom (film-base light scatter)
+  7. vignette                 — lens corner light falloff
+  8. scale                    — Lanczos to 1080px wide, original aspect ratio preserved
+  9. film grain               — half-res Gaussian noise → neighbour upscale (clumping)
 
 Audio:
   - afftdn noise reduction
@@ -62,23 +61,9 @@ LOOK_PRESETS = {
     ),
 }
 
-ASPECT_RATIOS = {
-    "instagram_landscape": 1.91,
-    "widescreen": 16 / 9,
-    "cinematic": 2.39,
-}
-
-EXPORT_DIMENSIONS = {
-    "instagram_landscape": (1080, 566),
-    "widescreen": (1080, 608),
-    "cinematic": (1080, 452),
-}
-
-
 @dataclass
 class JobOptions:
     look: str = "warm_film"
-    aspect_ratio: str = "instagram_landscape"
     grain_intensity: int = 15       # 0–40
     target_fps: int = 24
     denoise_audio: bool = True
@@ -90,11 +75,9 @@ def build_filter_complex(options: JobOptions) -> tuple[str, str]:
     Builds the FFmpeg filter_complex graph string.
     Returns (filter_complex_string, output_video_label).
 
-    Uses filter_complex rather than -vf so we can split the stream for
-    the halation bloom and the half-res grain layer.
+    Aspect ratio is never altered — original framing is preserved.
+    Output is scaled to 1080px wide (height calculated automatically).
     """
-    ratio = ASPECT_RATIOS[options.aspect_ratio]
-    out_w, out_h = EXPORT_DIMENSIONS[options.aspect_ratio]
     grain = max(0, min(options.grain_intensity, 40))
     grade = LOOK_PRESETS[options.look]
     chroma_grain = max(1, grain // 8)
@@ -102,37 +85,25 @@ def build_filter_complex(options: JobOptions) -> tuple[str, str]:
     segs = []
 
     # 1. FPS conversion + motion-blur simulation
-    #    tblend at opacity=0.18 blends 18% of the previous frame into the
-    #    current one — simulates the trailing smear of a 180° film shutter.
     segs.append(
         f"[0:v]fps={options.target_fps},"
         f"tblend=all_mode=average:all_opacity=0.18"
         f"[fps_out]"
     )
 
-    # 2. Deflicker — arithmetic-mean over a 5-frame window suppresses the
-    #    brightness drift caused by iPhone auto-exposure hunting.
+    # 2. Deflicker
     segs.append("[fps_out]deflicker=size=5:mode=am[deflickered]")
 
-    # 3. Crop — centre-crop to target aspect ratio
-    segs.append(f"[deflickered]crop=iw:iw/{ratio:.4f}[cropped]")
+    # 3. Lens correction — iPhone barrel distortion compensation
+    segs.append("[deflickered]lenscorrection=k1=-0.10:k2=0.03[lc]")
 
-    # 4. Lens correction — iPhone wide-angle produces barrel distortion.
-    #    k1 negative = barrel correction; k2 positive = secondary correction.
-    segs.append("[cropped]lenscorrection=k1=-0.10:k2=0.03[lc]")
-
-    # 5. Diffusion — negative unsharp mask gently softens the computational
-    #    over-sharpening that phone ISPs bake in. Luma only, chroma untouched.
+    # 4. Diffusion — remove computational phone sharpness
     segs.append("[lc]unsharp=5:5:-0.30:5:5:0[soft]")
 
-    # 6. Colour grade
+    # 5. Colour grade
     segs.append(f"[soft]{grade}[graded]")
 
-    # 7. Halation — THE key film artifact.
-    #    Isolate the top ~35% of luminance via curves, tint warm amber/red,
-    #    heavily gaussian-blur into a glow, then screen-blend back at low
-    #    opacity. Result: bright areas bleed a warm halo into surrounding
-    #    shadows, exactly as backscattered light does through a film base.
+    # 6. Halation
     segs.append("[graded]split=2[main][bloom_src]")
     segs.append(
         "[bloom_src]"
@@ -143,37 +114,24 @@ def build_filter_complex(options: JobOptions) -> tuple[str, str]:
     )
     segs.append("[main][bloom]blend=all_mode=screen:all_opacity=0.20[halated]")
 
-    # 8. Vignette — subtle lens corner falloff (PI/4 ≈ moderate darkening)
+    # 7. Vignette
     segs.append("[halated]vignette=PI/4[vignetted]")
 
-    # 9. Scale to final output resolution (Lanczos for quality)
-    segs.append(f"[vignetted]scale={out_w}:{out_h}:flags=lanczos[scaled]")
+    # 8. Scale to 1080px wide, preserve original aspect ratio.
+    #    -2 ensures height is divisible by 2 (required by libx264).
+    segs.append("[vignetted]scale=1080:-2:flags=lanczos[scaled]")
 
-    # 10. Film grain
-    #     Generated at HALF the output resolution, then scaled back up with
-    #     nearest-neighbour — this doubles the grain pixel size, producing
-    #     the larger spatial clumping of medium-ISO film grain rather than
-    #     the fine single-pixel pattern of digital noise.
-    #     Distribution: t (temporal — changes every frame) + a (averaged
-    #     samples, approximating Gaussian vs the harsh uniform 'u' mode).
-    #     Luma channel (c0) carries most of the grain; chroma (c1/c2) gets
-    #     ~1/8 — matching how silver-halide grain is almost entirely a
-    #     luminance phenomenon.
+    # 9. Film grain — half-res then neighbour-upscale for grain clumping
     if grain > 0:
-        half_w, half_h = out_w // 2, out_h // 2
         segs.append("[scaled]split=2[base][grain_src]")
         segs.append(
             f"[grain_src]"
-            f"scale={half_w}:{half_h},"
+            f"scale=iw/2:ih/2,"
             f"noise=c0s={grain}:c0f=t+a:c1s={chroma_grain}:c1f=t+a:c2s={chroma_grain}:c2f=t+a,"
-            f"scale={out_w}:{out_h}:flags=neighbor"
+            f"scale=iw*2:ih*2:flags=neighbor"
             f"[grain_layer]"
         )
-        # overlay blend: grain darkens darks and brightens lights — classic
-        # film grain response. Opacity kept low so grain enhances, not dominates.
-        segs.append(
-            "[base][grain_layer]blend=all_mode=overlay:all_opacity=0.12[out]"
-        )
+        segs.append("[base][grain_layer]blend=all_mode=overlay:all_opacity=0.12[out]")
         out_label = "[out]"
     else:
         out_label = "[scaled]"

@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from pipeline import JobOptions, run_pipeline, LOOK_PRESETS, ASPECT_RATIOS
+from pipeline import JobOptions, run_pipeline, LOOK_PRESETS
 
 BASE_DIR = Path(__file__).parent
 STORAGE_DIR = BASE_DIR / "storage"
@@ -46,11 +46,7 @@ class JobStatus(BaseModel):
 
 @app.get("/api/options")
 async def get_options():
-    """Lets the frontend render dropdowns without hardcoding choices."""
-    return {
-        "looks": list(LOOK_PRESETS.keys()),
-        "aspect_ratios": list(ASPECT_RATIOS.keys()),
-    }
+    return {"looks": list(LOOK_PRESETS.keys())}
 
 
 @app.post("/api/jobs", response_model=JobStatus)
@@ -58,7 +54,6 @@ async def create_job(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     look: str = Form("warm_film"),
-    aspect_ratio: str = Form("instagram_landscape"),
     grain_intensity: int = Form(15),
     target_fps: int = Form(24),
     denoise_audio: bool = Form(True),
@@ -66,10 +61,7 @@ async def create_job(
 ):
     if look not in LOOK_PRESETS:
         raise HTTPException(400, f"Unknown look '{look}'. Choose from {list(LOOK_PRESETS)}")
-    if aspect_ratio not in ASPECT_RATIOS:
-        raise HTTPException(400, f"Unknown aspect_ratio '{aspect_ratio}'")
 
-    # Resolve output directory: use provided path (+ filmify/ subfolder) or default
     if output_dir.strip():
         out_dir = Path(output_dir.strip()).expanduser() / "filmify"
     else:
@@ -92,7 +84,6 @@ async def create_job(
 
     options = JobOptions(
         look=look,
-        aspect_ratio=aspect_ratio,
         grain_intensity=grain_intensity,
         target_fps=target_fps,
         denoise_audio=denoise_audio,

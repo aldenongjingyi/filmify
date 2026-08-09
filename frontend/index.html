@@ -246,14 +246,7 @@
           <option value="faded">Faded</option>
         </select>
       </div>
-      <div class="field">
-        <label>Aspect ratio</label>
-        <select id="aspect_ratio">
-          <option value="instagram_landscape">Instagram Landscape (1.91:1)</option>
-          <option value="widescreen">Widescreen (16:9)</option>
-          <option value="cinematic">Cinematic (2.39:1)</option>
-        </select>
-      </div>
+
       <div class="field">
         <label>Grain intensity — <span class="range-val" id="grainVal">15</span></label>
         <input type="range" id="grain" min="0" max="40" value="15" />
@@ -385,7 +378,6 @@
     updateSubmitBtn();
 
     const look        = document.getElementById('look').value;
-    const aspectRatio = document.getElementById('aspect_ratio').value;
     const grainVal2   = grain.value;
     const denoise     = document.getElementById('denoise').checked;
 
@@ -401,7 +393,6 @@
       const form = new FormData();
       form.append('file',          selectedFiles[i]);
       form.append('look',          look);
-      form.append('aspect_ratio',  aspectRatio);
       form.append('grain_intensity', grainVal2);
       form.append('denoise_audio', denoise);
       form.append('output_dir',    document.getElementById('outputDir').value.trim());

@@ -59,7 +59,6 @@ async def main():
     parser = argparse.ArgumentParser(description="Filmify batch processor")
     parser.add_argument("folder", help="Folder containing source clips (searched recursively)")
     parser.add_argument("--look",    default="warm_film", choices=["warm_film", "teal_orange", "faded"])
-    parser.add_argument("--aspect",  default="cinematic",  choices=["instagram_landscape", "widescreen", "cinematic"])
     parser.add_argument("--grain",   default=18, type=int)
     parser.add_argument("--workers", default=2, type=int, help="Max concurrent FFmpeg jobs (default 2)")
     args = parser.parse_args()
@@ -81,11 +80,10 @@ async def main():
         return
 
     print(f"\n{BOLD}Filmify batch — {len(clips)} clips → {out_dir}{RESET}")
-    print(f"  Look: {args.look}  |  Aspect: {args.aspect}  |  Grain: {args.grain}  |  Workers: {args.workers}\n")
+    print(f"  Look: {args.look}  |  Grain: {args.grain}  |  Workers: {args.workers}\n")
 
     options = JobOptions(
         look=args.look,
-        aspect_ratio=args.aspect,
         grain_intensity=args.grain,
         target_fps=24,
         denoise_audio=True,
