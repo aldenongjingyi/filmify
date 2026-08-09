@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Filmify — turn phone footage into film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14120F;
+    --surface: #1E1B16;
+    --surface-2: #262117;
+    --text: #EFE7D8;
+    --text-muted: #A79C89;
+    --gold: #C89B3C;
+    --rust: #9C3B2E;
+    --hairline: #3A352C;
+    --green: #4e9a6f;
+    --red: #D97757;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:inherit;}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px;}
+  header{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:28px 0;border-bottom:1px solid var(--hairline);
+  }
+  .wordmark{font-family:'Fraunces',serif;font-size:22px;font-weight:600;letter-spacing:0.02em;}
+  .wordmark span{color:var(--gold);}
+  header .tag{color:var(--text-muted);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:56px 0 40px;}
+  .hero h1{
+    font-family:'Fraunces',serif;font-weight:500;
+    font-size:clamp(32px,5vw,52px);line-height:1.08;letter-spacing:-0.01em;
+    max-width:640px;margin:0 0 14px;
+  }
+  .hero p.lede{color:var(--text-muted);font-size:17px;max-width:520px;margin:0 0 36px;}
+
+  .compare{
+    position:relative;width:100%;aspect-ratio:1.91/1;border-radius:2px;
+    overflow:hidden;border:1px solid var(--hairline);
+    background:var(--surface);cursor:ew-resize;user-select:none;
+  }
+  .compare .frame{position:absolute;inset:0;}
+  .compare svg{width:100%;height:100%;display:block;}
+  .compare .after{clip-path:inset(0 0 0 50%);}
+  .compare .handle{
+    position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);
+    transform:translateX(-1px);
+  }
+  .compare .handle::after{
+    content:'';position:absolute;top:50%;left:50%;width:34px;height:34px;
+    background:var(--gold);border-radius:50%;transform:translate(-50%,-50%);
+  }
+  .compare .handle::before{
+    content:'◂ ▸';position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);
+    font-size:11px;color:var(--bg);z-index:2;letter-spacing:2px;
+  }
+  .compare .label{
+    position:absolute;bottom:12px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:0.06em;padding:4px 8px;background:rgba(20,18,15,0.65);
+    border:1px solid var(--hairline);
+  }
+  .compare .label.raw{left:12px;}
+  .compare .label.graded{right:12px;color:var(--gold);}
+
+  /* ---------- panel ---------- */
+  .panel{
+    background:var(--surface);border:1px solid var(--hairline);border-radius:2px;
+    padding:32px;margin:48px 0;
+  }
+  .panel h2{font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 4px;}
+  .panel .step-label{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gold);
+    letter-spacing:0.08em;margin-bottom:6px;display:block;
+  }
+
+  /* ---------- dropzone ---------- */
+  .dropzone{
+    border:1px dashed var(--hairline);border-radius:2px;padding:28px 20px;
+    text-align:center;margin:20px 0 12px;transition:border-color .15s,background .15s;
+  }
+  .dropzone.drag{border-color:var(--gold);background:rgba(200,155,60,0.04);}
+  .dropzone input{display:none;}
+  .dropzone label{
+    display:inline-block;padding:10px 20px;background:var(--gold);color:#14120F;
+    font-weight:600;font-size:14px;border-radius:2px;cursor:pointer;margin-top:8px;
+  }
+  .format-tags{
+    margin-top:12px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;
+  }
+  .fmt{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);
+    background:var(--surface-2);border:1px solid var(--hairline);
+    padding:3px 8px;border-radius:2px;
+  }
+  .fmt-note{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);padding:3px 2px;}
+
+  /* ---------- clip list ---------- */
+  .clip-list{display:flex;flex-direction:column;gap:6px;margin:0 0 8px;}
+  .clip-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:9px 12px;
+    background:var(--surface-2);border:1px solid var(--hairline);border-radius:2px;
+  }
+  .clip-name{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;margin-right:12px;
+  }
+  .clip-badge{
+    flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:10px;
+    letter-spacing:0.07em;padding:2px 8px;border-radius:2px;white-space:nowrap;
+  }
+  .clip-badge.queued   {color:var(--text-muted);background:var(--surface);border:1px solid var(--hairline);}
+  .clip-badge.uploading{color:var(--gold);background:rgba(200,155,60,0.08);border:1px solid var(--gold);}
+  .clip-badge.processing{color:var(--gold);background:rgba(200,155,60,0.08);border:1px solid var(--gold);animation:pulse 1.4s ease-in-out infinite;}
+  .clip-badge.done     {color:var(--green);background:rgba(78,154,111,0.08);border:1px solid var(--green);cursor:pointer;text-decoration:underline;}
+  .clip-badge.error    {color:var(--red);background:rgba(217,119,87,0.08);border:1px solid var(--red);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+
+  /* ---------- options ---------- */
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:24px 0;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.03em;}
+  .field select,.field input[type=range]{width:100%;}
+  select{
+    background:var(--surface-2);color:var(--text);border:1px solid var(--hairline);
+    padding:9px 10px;border-radius:2px;font-family:'Inter',sans-serif;font-size:14px;width:100%;
+  }
+  input[type=range]{accent-color:var(--gold);}
+  .range-val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold);}
+  .checkline{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-muted);}
+
+  button.cta{
+    width:100%;padding:14px;background:var(--rust);color:var(--text);
+    border:none;border-radius:2px;font-size:15px;font-weight:600;letter-spacing:0.01em;
+    cursor:pointer;margin-top:12px;transition:background .15s;
+  }
+  button.cta:disabled{background:var(--hairline);color:var(--text-muted);cursor:not-allowed;}
+
+  .upload-err{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--red);
+    margin:6px 0 0;text-align:center;
+  }
+
+  footer{border-top:1px solid var(--hairline);padding:24px 0;color:var(--text-muted);font-size:12px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a href="/" style="text-decoration:none;color:inherit;"><div class="wordmark">FILM<span>IFY</span></div></a>
+    <div class="tag mono">iPhone → 24fps · halation · grain · cinematic</div>
+  </header>
+
+  <section class="hero">
+    <h1>Your phone shot it flat.<br>We grade it like film.</h1>
+    <p class="lede">Upload one clip or a whole batch — each gets halation, film grain, colour grade, and motion blur, exported Instagram-ready.</p>
+
+    <div class="compare" id="compare">
+      <div class="frame before">
+        <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid slice">
+          <rect width="400" height="210" fill="#8fa4ad"/>
+          <rect y="120" width="400" height="90" fill="#5c6b63"/>
+          <circle cx="330" cy="40" r="22" fill="#f2eddb"/>
+          <polygon points="0,120 60,70 130,120" fill="#7a8b7f"/>
+          <polygon points="90,120 170,55 250,120" fill="#6c7d72"/>
+          <polygon points="200,120 280,80 360,120" fill="#7a8b7f"/>
+        </svg>
+      </div>
+      <div class="frame after" style="filter:saturate(0.82) contrast(1.14) sepia(0.22) hue-rotate(-10deg) brightness(0.90);">
+        <svg viewBox="0 0 400 210" preserveAspectRatio="xMidYMid slice">
+          <rect width="400" height="210" fill="#8fa4ad"/>
+          <rect y="120" width="400" height="90" fill="#5c6b63"/>
+          <circle cx="330" cy="40" r="22" fill="#f2eddb"/>
+          <polygon points="0,120 60,70 130,120" fill="#7a8b7f"/>
+          <polygon points="90,120 170,55 250,120" fill="#6c7d72"/>
+          <polygon points="200,120 280,80 360,120" fill="#7a8b7f"/>
+        </svg>
+      </div>
+      <div class="handle" id="handle"></div>
+      <div class="label raw mono">RAW</div>
+      <div class="label graded mono">GRADED</div>
+    </div>
+  </section>
+
+  <div class="panel">
+    <span class="step-label mono">STEP 01</span>
+    <h2>Upload your clips</h2>
+
+    <div class="dropzone" id="dropzone">
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:6px;">
+        Drag &amp; drop one or more videos here, or
+      </div>
+      <label for="fileInput">Choose files</label>
+      <input type="file" id="fileInput" multiple
+        accept="video/mp4,video/quicktime,video/x-m4v,video/3gpp,video/x-msvideo,video/MP2T,.mov,.mp4,.m4v,.3gp,.avi,.mts,.m2ts" />
+      <div class="format-tags">
+        <span class="fmt">.MOV</span>
+        <span class="fmt">.MP4</span>
+        <span class="fmt">.M4V</span>
+        <span class="fmt">.3GP</span>
+        <span class="fmt">.AVI</span>
+        <span class="fmt">.MTS</span>
+        <span class="fmt">.M2TS</span>
+        <span class="fmt-note">· up to 500 MB each</span>
+      </div>
+    </div>
+    <div class="upload-err" id="uploadErr" style="display:none;"></div>
+    <div class="clip-list" id="clipList"></div>
+
+    <div style="margin:4px 0 24px;">
+      <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:0.03em;">
+        Output folder <span style="color:var(--hairline);font-family:'IBM Plex Mono',monospace;">(optional — defaults to ~/Movies/Filmify)</span>
+      </label>
+      <input type="text" id="outputDir" placeholder="/Users/you/Desktop/bali videos"
+        style="width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--hairline);
+               padding:9px 10px;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:13px;" />
+      <div style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'IBM Plex Mono',monospace;">
+        Outputs saved as <span style="color:var(--gold);">your_folder/filmify/filename_filmify.mp4</span>
+      </div>
+    </div>
+
+    <span class="step-label mono">STEP 02</span>
+    <h2>Pick a look</h2>
+    <div class="options">
+      <div class="field">
+        <label>Grade</label>
+        <select id="look">
+          <option value="warm_film">Warm Film</option>
+          <option value="teal_orange">Teal &amp; Orange</option>
+          <option value="faded">Faded</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Grain intensity — <span class="range-val" id="grainVal">15</span></label>
+        <input type="range" id="grain" min="0" max="40" value="15" />
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end;">
+        <label class="checkline"><input type="checkbox" id="denoise" checked /> Clean up audio noise</label>
+      </div>
+    </div>
+
+    <span class="step-label mono">STEP 03</span>
+    <button class="cta" id="submitBtn" disabled>Process clips</button>
+  </div>
+
+  <footer>Filmify — server-side FFmpeg pipeline. Halation · S-curve · film grain · vignette · motion blur · lens correction.</footer>
+</div>
+
+<script>
+  // ---- before/after drag slider ----
+  const compare = document.getElementById('compare');
+  const handle  = document.getElementById('handle');
+  const afterEl = compare.querySelector('.after');
+  let dragging  = false;
+
+  function setSplit(clientX) {
+    const rect = compare.getBoundingClientRect();
+    let pct = ((clientX - rect.left) / rect.width) * 100;
+    pct = Math.max(0, Math.min(100, pct));
+    afterEl.style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = pct + '%';
+  }
+  compare.addEventListener('pointerdown', e => { dragging = true; setSplit(e.clientX); });
+  window.addEventListener('pointermove',  e => { if (dragging) setSplit(e.clientX); });
+  window.addEventListener('pointerup',    () => { dragging = false; });
+
+  // ---- grain slider readout ----
+  const grain    = document.getElementById('grain');
+  const grainVal = document.getElementById('grainVal');
+  grain.addEventListener('input', () => grainVal.textContent = grain.value);
+
+  // ---- file handling ----
+  const fileInput = document.getElementById('fileInput');
+  const dropzone  = document.getElementById('dropzone');
+  const clipList  = document.getElementById('clipList');
+  const submitBtn = document.getElementById('submitBtn');
+  const uploadErr = document.getElementById('uploadErr');
+
+  const SUPPORTED_EXT = new Set(['.mov','.mp4','.m4v','.3gp','.avi','.mts','.m2ts']);
+  let selectedFiles = [];   // array of File objects
+  let jobRunning    = false;
+
+  function isVideo(file) {
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    return file.type.startsWith('video/') || SUPPORTED_EXT.has(ext);
+  }
+
+  function addFiles(fileList) {
+    const valid   = Array.from(fileList).filter(isVideo);
+    const invalid = Array.from(fileList).filter(f => !isVideo(f));
+
+    if (invalid.length) {
+      uploadErr.textContent = `Skipped ${invalid.length} unsupported file(s) — only video formats accepted.`;
+      uploadErr.style.display = 'block';
+    } else {
+      uploadErr.style.display = 'none';
+    }
+
+    if (valid.length === 0) return;
+
+    // Avoid duplicates by name
+    const existing = new Set(selectedFiles.map(f => f.name));
+    const fresh = valid.filter(f => !existing.has(f.name));
+    selectedFiles = selectedFiles.concat(fresh);
+
+    renderClipList();
+    updateSubmitBtn();
+  }
+
+  function renderClipList() {
+    clipList.innerHTML = selectedFiles.map((f, i) => `
+      <div class="clip-item" id="clip-${i}">
+        <span class="clip-name">${f.name}</span>
+        <span class="clip-badge queued" id="badge-${i}">QUEUED</span>
+      </div>
+    `).join('');
+  }
+
+  function setBadge(i, state, jobId, errorMsg) {
+    const el = document.getElementById(`badge-${i}`);
+    if (!el) return;
+    el.className = `clip-badge ${state}`;
+    const labels = { queued:'QUEUED', uploading:'UPLOADING', processing:'PROCESSING…', done:'DOWNLOAD', error:'ERROR' };
+    el.textContent = labels[state] || state.toUpperCase();
+    if (state === 'done' && jobId) {
+      el.onclick = () => window.open(`/api/jobs/${jobId}/download`);
+    }
+    if (state === 'error' && errorMsg) {
+      el.title = errorMsg;
+    }
+  }
+
+  function updateSubmitBtn() {
+    const n = selectedFiles.length;
+    submitBtn.disabled = n === 0 || jobRunning;
+    submitBtn.textContent = n === 0
+      ? 'Process clips'
+      : `Process ${n} clip${n > 1 ? 's' : ''}`;
+  }
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) addFiles(fileInput.files);
+  });
+
+  // drag-and-drop
+  dropzone.addEventListener('dragenter', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', e => {
+    if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove('drag');
+  });
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  });
+
+  // ---- submission ----
+  submitBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0 || jobRunning) return;
+    jobRunning = true;
+    updateSubmitBtn();
+
+    const look        = document.getElementById('look').value;
+    const grainVal2   = grain.value;
+    const denoise     = document.getElementById('denoise').checked;
+
+    // Process sequentially: prevents server overload and gives clear per-clip
+    // progress that the user can follow.
+    for (let i = 0; i < selectedFiles.length; i++) {
+      // Skip clips already done or errored from a previous run
+      const badge = document.getElementById(`badge-${i}`);
+      if (badge && (badge.classList.contains('done') || badge.classList.contains('error'))) continue;
+
+      setBadge(i, 'uploading');
+
+      const form = new FormData();
+      form.append('file',          selectedFiles[i]);
+      form.append('look',          look);
+      form.append('grain_intensity', grainVal2);
+      form.append('denoise_audio', denoise);
+      form.append('output_dir',    document.getElementById('outputDir').value.trim());
+
+      try {
+        const res = await fetch('/api/jobs', { method: 'POST', body: form });
+        if (!res.ok) throw new Error(await res.text());
+        const job = await res.json();
+        setBadge(i, 'processing');
+        await pollClip(i, job.job_id);
+      } catch (err) {
+        setBadge(i, 'error', null, err.message);
+      }
+    }
+
+    jobRunning = false;
+    updateSubmitBtn();
+  });
+
+  function pollClip(clipIndex, jobId) {
+    return new Promise(resolve => {
+      const iv = setInterval(async () => {
+        try {
+          const res  = await fetch(`/api/jobs/${jobId}`);
+          const data = await res.json();
+          if (data.status === 'done') {
+            clearInterval(iv);
+            setBadge(clipIndex, 'done', jobId);
+            resolve();
+          } else if (data.status === 'error') {
+            clearInterval(iv);
+            setBadge(clipIndex, 'error', null, data.error);
+            resolve();
+          }
+          // 'queued' and 'processing' — keep polling
+        } catch {
+          clearInterval(iv);
+          setBadge(clipIndex, 'error', null, 'Lost connection while polling');
+          resolve();
+        }
+      }, 2000);
+    });
+  }
+</script>
+
+</body>
+</html>
